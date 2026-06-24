@@ -1,0 +1,27 @@
+# Rust
+/target
+/src-tauri/target
+**/*.rs.bk
+Cargo.lock
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Tauri gerado
+/src-tauri/gen/
+
+# Icones desktop gerados por `cargo tauri icon` (recriados a partir da fonte
+# em assets/ pelo CI). ~25 arquivos por plataforma — nao versionamos.
+/src-tauri/icons/
+
+# Os icones PWA (frontend/public/icons/) SAO versionados: sao 5 arquivos
+# pequenos servidos aos celulares e evitam exigir ferramenta de imagem no CI.
+
+# Dados em runtime
+lumenlan_received/
+
+# IDE
+.vscode/
+claude/
+.claude/

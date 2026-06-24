@@ -1,0 +1,39 @@
+[package]
+name = "lumenlan"
+version = "0.1.0"
+edition = "2021"
+description = "Chat e compartilhamento de imagens na LAN (Tauri v2 + axum)"
+authors = ["Caue Araujo"]
+default-run = "lumenlan"
+
+# O binario final reusa a lib (mesma crate) para manter os modulos testaveis.
+[lib]
+name = "lumenlan_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "lumenlan"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "sync", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = { version = "0.8", features = ["ws"] }
+rust-embed = "8"
+mime_guess = "2"
+bytes = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
