@@ -2,6 +2,7 @@
 //! a LAN entra na Fase 1, spawnado no hook `setup()`.
 
 mod config;
+mod discovery;
 mod files;
 mod protocol;
 mod server;
@@ -25,6 +26,8 @@ pub fn run() {
             tracing::info!("LumenLan iniciado");
             // Servidor HTTP+WebSocket em task dedicada no runtime do Tauri.
             tauri::async_runtime::spawn(server::run(shutdown_rx.clone()));
+            // Anuncia o host na LAN via mDNS (best-effort).
+            discovery::advertise();
             Ok(())
         })
         .build(tauri::generate_context!())

@@ -4,6 +4,7 @@
   import MessageList from "./components/MessageList.svelte";
   import MessageInput from "./components/MessageInput.svelte";
   import ImageDrop from "./components/ImageDrop.svelte";
+  import ConnectModal from "./components/ConnectModal.svelte";
   import { LumenSocket } from "./lib/ws";
   import { sendImage, parseFrame, IncomingImage, MAX_FILE_BYTES } from "./lib/files";
   import type { ChatItem } from "./lib/protocol";
@@ -19,6 +20,7 @@
   let items = $state<ChatItem[]>([]);
   let connected = $state(false);
   let presence = $state(0);
+  let showConnect = $state(false);
 
   let socket: LumenSocket;
 
@@ -101,6 +103,9 @@
   <span class="brand">LumenLan</span>
   <span class="tag">v{version}</span>
   <span class="spacer"></span>
+  <button class="connect" onclick={() => (showConnect = true)} title="Conectar celular">
+    📱 Conectar
+  </button>
   <span class="presence" title="conectados">● {presence}</span>
   <input
     class="name"
@@ -123,6 +128,10 @@
 
 <StatusBar />
 
+{#if showConnect}
+  <ConnectModal onclose={() => (showConnect = false)} />
+{/if}
+
 <style>
   .topbar {
     display: flex;
@@ -142,6 +151,17 @@
   }
   .spacer {
     flex: 1;
+  }
+  .connect {
+    font-size: 0.78rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.25rem 0.6rem;
+  }
+  .connect:hover {
+    border-color: var(--accent);
   }
   .presence {
     font-size: 0.8rem;
