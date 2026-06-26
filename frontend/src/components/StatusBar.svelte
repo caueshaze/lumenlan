@@ -1,19 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { httpBase } from "../lib/config";
-
-  type Health = { status: string; ip: string; port: number };
+  import { getServerInfo } from "../lib/config";
 
   let online = $state(false);
   let shareUrl = $state("");
 
   async function ping() {
     try {
-      const res = await fetch(`${httpBase()}/health`, { cache: "no-store" });
-      if (!res.ok) throw new Error(String(res.status));
-      const h: Health = await res.json();
+      const info = await getServerInfo();
       online = true;
-      shareUrl = `http://${h.ip}:${h.port}`;
+      shareUrl = `http://${info.ip}:${info.port}`;
     } catch {
       online = false;
     }

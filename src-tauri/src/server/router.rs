@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::config;
 
-use super::{hub::Hub, static_files, ws};
+use super::{static_files, ws, AppState};
 
 /// Resposta de `/health`: usada pela UI para descobrir o endereco que os
 /// celulares devem acessar e checar se o servidor esta no ar.
@@ -25,10 +25,10 @@ async fn health() -> Json<Health> {
 }
 
 /// Constroi o roteador: `/health`, `/ws` e fallback servindo o frontend.
-pub fn build(hub: Hub) -> Router {
+pub fn build(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/ws", get(ws::upgrade))
-        .with_state(hub)
+        .with_state(state)
         .fallback(static_files::serve)
 }

@@ -9,25 +9,8 @@ pub const SERVER_PORT: u16 = 8787;
 /// Endereco de bind do servidor: todas as interfaces, para alcancar a LAN.
 pub const BIND_ADDR: &str = "0.0.0.0";
 
-/// Pasta onde imagens recebidas sao salvas automaticamente.
+/// Pasta onde arquivos recebidos sao salvos automaticamente.
 pub const DOWNLOAD_DIR: &str = "lumenlan_received";
-
-/// Tamanho maximo aceito por imagem (50 MiB).
-pub const MAX_FILE_BYTES: u64 = 50 * 1024 * 1024;
-
-/// Aceita apenas imagens. Usa o mime quando presente; senao infere pela extensao.
-pub fn is_allowed_image(mime: &str, name: &str) -> bool {
-    if mime.starts_with("image/") {
-        return true;
-    }
-    if !mime.is_empty() {
-        return false;
-    }
-    let lower = name.to_ascii_lowercase();
-    [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".heic"]
-        .iter()
-        .any(|ext| lower.ends_with(ext))
-}
 
 /// Resolve o diretorio de downloads relativo ao CWD do processo.
 pub fn download_dir() -> PathBuf {

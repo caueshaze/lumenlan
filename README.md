@@ -4,7 +4,7 @@
 
 # LumenLan
 
-**Chat e compartilhamento de imagens na sua rede local — sem internet, sem cadastro.**
+**Chat e compartilhamento de arquivos na sua rede local — sem internet, sem cadastro.**
 
 O desktop (Linux/Windows) abre um app nativo e, ao mesmo tempo, serve a interface
 para qualquer celular na mesma Wi-Fi. É só escanear o QR code.
@@ -25,11 +25,12 @@ para qualquer celular na mesma Wi-Fi. É só escanear o QR code.
 ## ✨ Recursos
 
 - 💬 **Chat em tempo real** entre desktop e vários celulares (1 → N, broadcast).
-- 🖼️ **Compartilhamento de imagens** em chunks, salvas automaticamente em `./lumenlan_received/`.
+- 📎 **Compartilhamento de arquivos** de qualquer tipo, **sem limite de tamanho**,
+  em chunks e salvos automaticamente em `./lumenlan_received/` (imagens ganham preview).
 - 📱 **PWA**: a interface web é instalável no celular (ícone na tela inicial).
 - 🔌 **Binário único self-contained**: o frontend vai embutido no executável.
 - 🛰️ **Descoberta automática** via mDNS (`lumenlan.local`) + **QR code** na janela nativa.
-- ⚡ **Assíncrono** (Tokio): imagens pesadas não travam o chat de texto.
+- ⚡ **Assíncrono** (Tokio): arquivos pesados não travam o chat de texto.
 
 ## 🏗️ Arquitetura
 
@@ -48,8 +49,8 @@ para qualquer celular na mesma Wi-Fi. É só escanear o QR code.
 ```
 
 A janela nativa e os celulares carregam **a mesma UI** e falam o mesmo protocolo
-WebSocket. O servidor `axum` (embutido) faz o broadcast 1 → N e grava as imagens
-recebidas em disco via streaming.
+WebSocket. O servidor `axum` (embutido) faz o broadcast 1 → N e grava os arquivos
+recebidos em disco via streaming.
 
 ## 🧰 Stack
 
@@ -124,16 +125,82 @@ cargo tauri dev
 
 ## 📱 Conectando o celular
 
-Com o app aberto, clique em **📱 Conectar** para ver o **QR code** e o endereço.
-No celular (mesma Wi-Fi), escaneie ou abra:
+Com o app aberto, clique em **📱 Conectar** para ver o **QR code** e o **PIN**.
+
+- **Celular**: escaneie o QR — o PIN já vai embutido, entra direto.
+- **Outro PC**: abra o endereço no navegador e **digite o PIN** na tela inicial:
 
 ```
 http://<ip-do-desktop>:8787      # ex.: http://192.168.15.5:8787
-http://lumenlan.local:8787       # em redes com suporte a mDNS
+http://lumenlan.local:8787       # em redes com suporte a mDNS (sem decorar o IP)
 ```
+
+Qualquer dispositivo na mesma Wi-Fi conecta (vários ao mesmo tempo) — só pelo
+navegador, sem instalar nada.
 
 > **PWA:** no iOS use *Adicionar à Tela de Início* (Safari). No Android, a
 > instalação completa de PWA exige HTTPS; em HTTP na LAN funciona como atalho.
+
+### 🧱 Firewall
+
+O host precisa **liberar a porta `8787/tcp`** para receber conexões — senão a
+janela nativa abre (localhost), mas celular/outro PC ficam em *"servidor não
+encontrado"*. Opcionalmente, `5353/udp` (mDNS) para o `lumenlan.local` funcionar.
+
+<details>
+<summary><strong>Fedora / openSUSE (firewalld)</strong></summary>
+
+```bash
+sudo firewall-cmd --add-port=8787/tcp --permanent
+sudo firewall-cmd --add-port=5353/udp --permanent   # opcional (mDNS)
+sudo firewall-cmd --reload
+```
+</details>
+
+<details>
+<summary><strong>Ubuntu / Debian (ufw)</strong></summary>
+
+```bash
+sudo ufw allow 8787/tcp
+sudo ufw allow 5353/udp   # opcional (mDNS)
+```
+</details>
+
+<details>
+<summary><strong>Arch / Manjaro</strong></summary>
+
+Sem firewall por padrão — costuma funcionar direto. Se você usa `ufw` ou
+`firewalld`, aplique a regra equivalente acima.
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+Na primeira execução o **Windows Defender Firewall** mostra um aviso —
+marque **Redes privadas** e clique em *Permitir acesso*. Se tiver clicado em
+bloquear antes, libere em *Firewall do Windows → Permitir um aplicativo*.
+</details>
+
+## 🔒 Segurança
+
+- **PIN de sala**: a cada execução o host gera um **PIN de 6 dígitos**. Só entra
+  no chat quem tem o PIN — ele aparece no QR code (celular escaneia) e na tela do
+  host (para digitar em outro PC), nunca em um endpoint público. Conexões ao
+  `/ws` sem o PIN correto recebem `401`.
+- **Anti-brute-force**: como o PIN é curto, tentativas erradas são limitadas por
+  IP — após algumas falhas o IP entra em *cooldown* (`429`), inviabilizando
+  adivinhação por força bruta.
+- **Sanitização**: nomes de arquivo recebidos são limpos (sem path traversal) —
+  não escapam de `./lumenlan_received/`.
+
+> **Sem limite de tamanho**: arquivos de qualquer tipo/tamanho são aceitos; em
+> redes de confiança isso é prático, mas lembre que um arquivo muito grande (ou
+> muitos) pode encher o disco do host.
+
+> **Escopo**: o tráfego na LAN é em texto puro (sem TLS), então o PIN protege
+> contra alguém apenas *apontar o navegador* para o seu IP, mas não contra
+> captura ativa de pacotes na mesma rede. Para uso doméstico é adequado; em redes
+> não confiáveis, considere HTTPS/WSS (não incluso).
 
 ## 📦 Build de produção
 

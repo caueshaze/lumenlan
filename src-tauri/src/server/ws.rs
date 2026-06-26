@@ -4,23 +4,49 @@
 //! mensagens vindas do barramento (outros clientes) vao para o socket, e
 //! mensagens do socket sao publicadas no barramento. Sem split -> sem deps extras.
 
+use std::net::SocketAddr;
+
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        ConnectInfo, Query, State,
     },
-    response::Response,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use bytes::Bytes;
+use serde::Deserialize;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::files::{self, Receiver};
 use crate::protocol::{now_ms, ClientMsg, ServerMsg};
 
 use super::hub::{Hub, Payload};
+use super::AppState;
 
-/// Rota `/ws`: faz o upgrade e entrega a conexao para `Conn::run`.
-pub async fn upgrade(ws: WebSocketUpgrade, State(hub): State<Hub>) -> Response {
+#[derive(Deserialize)]
+pub struct WsAuth {
+    token: Option<String>,
+}
+
+/// Rota `/ws`: exige o PIN de sala antes do upgrade. IPs com muitas tentativas
+/// erradas ficam em cooldown (429); PIN incorreto recebe 401.
+pub async fn upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Query(auth): Query<WsAuth>,
+) -> Response {
+    let ip = addr.ip();
+    if !state.throttle.allowed(ip) {
+        return (StatusCode::TOO_MANY_REQUESTS, "muitas tentativas, tente em instantes").into_response();
+    }
+    if auth.token.as_deref() != Some(state.token.as_ref()) {
+        state.throttle.record_fail(ip);
+        return (StatusCode::UNAUTHORIZED, "PIN de sala invalido").into_response();
+    }
+    state.throttle.record_ok(ip);
+    let hub = state.hub.clone();
     ws.on_upgrade(move |socket| async move { Conn::new(&hub).run(socket, hub.clone()).await })
 }
 
@@ -139,7 +165,7 @@ impl Conn {
         if let Err(e) = receiver.write(&data).await {
             tracing::error!("transferencia abortada: {e}");
             self.incoming = None;
-            self.reject(hub, "falha ao gravar imagem".into());
+            self.reject(hub, "falha ao gravar arquivo".into());
             return;
         }
         hub.publish(self.id, Payload::Binary(files::frame_chunk(id, &data)));
@@ -153,14 +179,6 @@ impl Conn {
     }
 
     async fn start_file(&mut self, hub: &Hub, id: String, name: String, mime: String, size: u64) {
-        if size > crate::config::MAX_FILE_BYTES {
-            self.reject(hub, format!("imagem muito grande (max {} MB)", crate::config::MAX_FILE_BYTES / 1024 / 1024));
-            return;
-        }
-        if !crate::config::is_allowed_image(&mime, &name) {
-            self.reject(hub, "apenas imagens sao aceitas".into());
-            return;
-        }
         match Receiver::create(&name).await {
             Ok(receiver) => {
                 self.incoming = Some((id.clone(), receiver));

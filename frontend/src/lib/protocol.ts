@@ -17,4 +17,13 @@ export type ServerMsg =
 export type ChatItem =
   | { kind: "text"; mine: boolean; from: string; body: string; ts: number }
   | { kind: "system"; body: string; ts: number }
-  | { kind: "image"; mine: boolean; from: string; name: string; url: string; ts: number };
+  | {
+      kind: "file";
+      mine: boolean;
+      from: string;
+      name: string;
+      mime: string;
+      size: number;
+      url: string;
+      ts: number;
+    };

@@ -14,18 +14,20 @@ export class LumenSocket {
   private closedByUser = false;
   private retry = 0;
   private name: string;
+  private token: string;
 
   onJson: JsonHandler = () => {};
   onBinary: BinaryHandler = () => {};
   onStatus: StatusHandler = () => {};
 
-  constructor(name: string) {
+  constructor(name: string, token: string) {
     this.name = name;
+    this.token = token;
   }
 
   connect() {
     this.closedByUser = false;
-    const ws = new WebSocket(`${wsBase()}/ws`);
+    const ws = new WebSocket(`${wsBase()}/ws?token=${encodeURIComponent(this.token)}`);
     ws.binaryType = "arraybuffer";
     this.ws = ws;
 

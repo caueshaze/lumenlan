@@ -3,133 +3,59 @@
   import StatusBar from "./components/StatusBar.svelte";
   import MessageList from "./components/MessageList.svelte";
   import MessageInput from "./components/MessageInput.svelte";
-  import ImageDrop from "./components/ImageDrop.svelte";
+  import FileDrop from "./components/FileDrop.svelte";
   import ConnectModal from "./components/ConnectModal.svelte";
-  import { LumenSocket } from "./lib/ws";
-  import { sendImage, parseFrame, IncomingImage, MAX_FILE_BYTES } from "./lib/files";
-  import type { ChatItem } from "./lib/protocol";
+  import PinGate from "./components/PinGate.svelte";
+  import Welcome from "./components/Welcome.svelte";
+  import { createSessionController } from "./lib/session.svelte";
 
   const version = "0.1.0";
-
-  // Nome persistente (editavel no topo). Default amigavel e aleatorio.
-  let name = $state(
-    localStorage.getItem("lumenlan.name") ??
-      `Visitante-${Math.floor(Math.random() * 0xffff).toString(16)}`,
-  );
-
-  let items = $state<ChatItem[]>([]);
-  let connected = $state(false);
-  let presence = $state(0);
-  let showConnect = $state(false);
-
-  let socket: LumenSocket;
-
-  // Imagens em recepcao, indexadas pelo id da transferencia.
-  const pending = new Map<string, IncomingImage>();
-
-  function add(item: ChatItem) {
-    items = [...items, item];
-  }
+  const session = createSessionController();
+  const state = session.state;
 
   onMount(() => {
-    socket = new LumenSocket(name);
-    socket.onStatus = (open) => (connected = open);
-    socket.onJson = (msg) => {
-      switch (msg.type) {
-        case "text":
-          add({ kind: "text", mine: false, from: msg.from, body: msg.body, ts: msg.ts });
-          break;
-        case "presence":
-          presence = msg.count;
-          break;
-        case "system":
-          add({ kind: "system", body: msg.body, ts: Date.now() });
-          break;
-        case "file_start":
-          pending.set(msg.id, new IncomingImage(msg.from, msg.name, msg.mime));
-          break;
-        case "file_end": {
-          const img = pending.get(msg.id);
-          pending.delete(msg.id);
-          if (img) {
-            add({
-              kind: "image",
-              mine: false,
-              from: img.from,
-              name: img.name,
-              url: img.toUrl(),
-              ts: Date.now(),
-            });
-          }
-          break;
-        }
-      }
-    };
-    socket.onBinary = (buf) => {
-      const { id, data } = parseFrame(buf);
-      pending.get(id)?.push(data);
-    };
-    socket.connect();
-    return () => socket.close();
+    session.init();
+    return () => session.destroy();
   });
-
-  function sendText(body: string) {
-    socket.send({ type: "text", body });
-    add({ kind: "text", mine: true, from: name, body, ts: Date.now() });
-  }
-
-  async function onPickImage(file: File) {
-    if (file.size > MAX_FILE_BYTES) {
-      add({
-        kind: "system",
-        body: `"${file.name}" excede ${MAX_FILE_BYTES / 1024 / 1024} MB e nao foi enviada`,
-        ts: Date.now(),
-      });
-      return;
-    }
-    const url = await sendImage(socket, file);
-    add({ kind: "image", mine: true, from: name, name: file.name, url, ts: Date.now() });
-  }
-
-  function renameOnBlur() {
-    const clean = name.trim() || "anon";
-    name = clean;
-    localStorage.setItem("lumenlan.name", clean);
-    socket?.send({ type: "hello", name: clean });
-  }
 </script>
 
-<header class="topbar">
-  <span class="brand">LumenLan</span>
-  <span class="tag">v{version}</span>
-  <span class="spacer"></span>
-  <button class="connect" onclick={() => (showConnect = true)} title="Conectar celular">
-    📱 Conectar
-  </button>
-  <span class="presence" title="conectados">● {presence}</span>
-  <input
-    class="name"
-    bind:value={name}
-    onblur={renameOnBlur}
-    maxlength="32"
-    aria-label="Seu nome"
-  />
-</header>
+{#if !state.onboarded}
+  <Welcome defaultName={state.name} onfinish={session.finishWelcome} />
+{:else if state.gated}
+  <PinGate onsubmit={session.submitPin} error={state.authError} />
+{:else}
+  <header class="topbar">
+    <span class="brand">LumenLan</span>
+    <span class="tag">v{version}</span>
+    <span class="spacer"></span>
+    <button class="connect" onclick={session.openConnectModal} title="Conectar celular">
+      📱 Conectar
+    </button>
+    <span class="presence" title="conectados">● {state.presence}</span>
+    <input
+      class="name"
+      bind:value={state.name}
+      onblur={session.rename}
+      maxlength="32"
+      aria-label="Seu nome"
+    />
+  </header>
 
-{#if !connected}
-  <div class="banner">Reconectando ao servidor…</div>
+  {#if !state.connected}
+    <div class="banner">Reconectando ao servidor…</div>
+  {/if}
+
+  <main class="chat">
+    <MessageList items={state.items} />
+    <FileDrop onpick={session.pickFile} disabled={!state.connected} />
+    <MessageInput onsend={session.sendText} disabled={!state.connected} />
+  </main>
+
+  <StatusBar />
 {/if}
 
-<main class="chat">
-  <MessageList {items} />
-  <ImageDrop onpick={onPickImage} disabled={!connected} />
-  <MessageInput onsend={sendText} disabled={!connected} />
-</main>
-
-<StatusBar />
-
-{#if showConnect}
-  <ConnectModal onclose={() => (showConnect = false)} />
+{#if state.showConnect}
+  <ConnectModal token={state.token} onclose={session.closeConnectModal} />
 {/if}
 
 <style>

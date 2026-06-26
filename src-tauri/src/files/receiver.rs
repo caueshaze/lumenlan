@@ -1,4 +1,4 @@
-//! Gravacao em streaming de imagens recebidas para `./lumenlan_received/`.
+//! Gravacao em streaming de arquivos recebidos para `./lumenlan_received/`.
 //!
 //! Os chunks sao escritos no disco assim que chegam — nunca mantemos o arquivo
 //! inteiro em RAM (requisito de baixo consumo de memoria).
@@ -15,7 +15,6 @@ pub struct Receiver {
     file: File,
     path: PathBuf,
     written: u64,
-    limit: u64,
 }
 
 impl Receiver {
@@ -26,26 +25,18 @@ impl Receiver {
         fs::create_dir_all(&dir).await?;
         let path = unique_path(&dir, &sanitize(name));
         let file = File::create(&path).await?;
-        tracing::info!("recebendo imagem em {}", path.display());
+        tracing::info!("recebendo arquivo em {}", path.display());
         Ok(Self {
             file,
             path,
             written: 0,
-            limit: config::MAX_FILE_BYTES,
         })
     }
 
-    /// Anexa um chunk ao arquivo, respeitando o limite total.
+    /// Anexa um chunk ao arquivo.
     pub async fn write(&mut self, data: &[u8]) -> std::io::Result<()> {
-        self.written += data.len() as u64;
-        if self.written > self.limit {
-            let _ = fs::remove_file(&self.path).await;
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "limite de tamanho excedido",
-            ));
-        }
         self.file.write_all(data).await?;
+        self.written += data.len() as u64;
         Ok(())
     }
 
@@ -53,7 +44,7 @@ impl Receiver {
     pub async fn finish(mut self) -> std::io::Result<PathBuf> {
         self.file.flush().await?;
         self.file.sync_all().await?;
-        tracing::info!("imagem salva: {} ({} bytes)", self.path.display(), self.written);
+        tracing::info!("arquivo salvo: {} ({} bytes)", self.path.display(), self.written);
         Ok(self.path)
     }
 }
